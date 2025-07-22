@@ -19,7 +19,7 @@ def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_excel(FILE_PATH)
 
-        # Combine "Event Date" and "Event Start" if needed
+        # Combine Event Date & Start if both exist
         if "Event Start" not in df.columns and "Event Date" in df.columns:
             df["Event Start"] = pd.to_datetime(df["Event Date"], errors="coerce")
         elif "Event Start" in df.columns and "Event Date" in df.columns:
@@ -28,7 +28,7 @@ def load_data():
         if "Event Date" in df.columns:
             df.drop(columns=["Event Date"], inplace=True)
 
-        # Ensure all required columns
+        # Ensure required columns
         required_cols = [
             "Event Start", "Event Location", "Post Code", "Senior Referee",
             "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"
@@ -66,7 +66,6 @@ def generate_pdf(dataframe):
                 formatted_row.append(str(cell) if pd.notnull(cell) else "")
         table_data.append(formatted_row)
 
-    # Scale to page width
     page_width = landscape(A4)[0]
     num_columns = len(table_data[0])
     col_width = page_width / num_columns
@@ -109,6 +108,21 @@ st.sidebar.download_button(
     file_name="WRPF_UK_Referee_Planner.pdf",
     mime="application/pdf"
 )
+
+# View Referee Assignments
+st.sidebar.subheader("🧍 View Referee Schedule")
+referee_cols = ["Senior Referee", "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"]
+
+# Build dropdown of unique, cleaned referee names
+all_names = pd.unique(pd.concat([df[col].astype(str).str.strip().str.lower() for col in referee_cols]).dropna())
+all_names = sorted(set([name.title() for name in all_names if name and name.lower() != "nan"]))
+
+selected_ref = st.sidebar.selectbox("Select a referee", ["-- Select --"] + all_names)
+
+if selected_ref and selected_ref != "-- Select --":
+    mask = df[referee_cols].apply(lambda col: col.astype(str).str.lower().str.strip() == selected_ref.lower()).any(axis=1)
+    st.sidebar.write(f"### Events for **{selected_ref}**:")
+    st.sidebar.dataframe(df[mask][["Event Start", "Event Location", "Post Code"]], use_container_width=True)
 
 # Save edits
 st.sidebar.subheader("🔐 Save Edited Table")
