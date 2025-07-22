@@ -34,7 +34,7 @@ def load_data():
         if "Post Code" not in df.columns:
             df["Post Code"] = ""
 
-        # Ensure all columns present in order
+        # Ensure all required columns in order
         required_cols = [
             "Event Start", "Event Location", "Post Code", "Senior Referee",
             "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"
@@ -62,6 +62,7 @@ def generate_pdf(dataframe):
     elements.append(title)
     elements.append(Spacer(1, 12))
 
+    # Format data
     table_data = [list(dataframe.columns)]
     for row in dataframe.itertuples(index=False):
         formatted_row = []
@@ -72,7 +73,12 @@ def generate_pdf(dataframe):
                 formatted_row.append(str(cell) if pd.notnull(cell) else "")
         table_data.append(formatted_row)
 
-    table = Table(table_data, hAlign='LEFT')
+    # Scale table to full page width
+    page_width = landscape(A4)[0]
+    num_columns = len(table_data[0])
+    col_width = page_width / num_columns
+    table = Table(table_data, colWidths=[col_width] * num_columns)
+
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.black),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -114,9 +120,9 @@ st.sidebar.download_button(
 # Save edits
 st.sidebar.subheader("🔐 Save Edited Table")
 edit_password = st.sidebar.text_input("Password to save", type="password")
-# Use data_editor and capture edited version
-st.subheader("📋 Referee Assignments")
 
+# === Main Table Display ===
+st.subheader("📋 Referee Assignments")
 edited_df = st.data_editor(
     df,
     use_container_width=True,
