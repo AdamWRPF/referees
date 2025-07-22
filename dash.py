@@ -26,7 +26,6 @@ def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_excel(FILE_PATH)
 
-        # Combine Event Date & Start if both exist
         if "Event Start" not in df.columns and "Event Date" in df.columns:
             df["Event Start"] = pd.to_datetime(df["Event Date"], errors="coerce")
         elif "Event Start" in df.columns and "Event Date" in df.columns:
@@ -117,26 +116,18 @@ st.sidebar.download_button(
     mime="application/pdf"
 )
 
-# View Referee Assignments
+# Referee dropdown
 st.sidebar.subheader("🧍 View Referee Schedule")
 all_names_raw = pd.concat([df[col].dropna().astype(str) for col in referee_cols])
 all_cleaned_names = sorted(set(clean_name(n) for n in all_names_raw if n.strip() and n.lower() != "nan"))
 
 selected_ref = st.sidebar.selectbox("Select a referee", ["-- Select --"] + all_cleaned_names)
 
-if selected_ref and selected_ref != "-- Select --":
-    def matches_clean(cell):
-        return clean_name(cell) == selected_ref
-
-    mask = df[referee_cols].applymap(matches_clean).any(axis=1)
-    st.sidebar.write(f"### Events for **{selected_ref}**:")
-    st.sidebar.dataframe(df[mask][["Event Start", "Event Location", "Post Code"]], use_container_width=True)
-
 # Save edits
 st.sidebar.subheader("🔐 Save Edited Table")
 edit_password = st.sidebar.text_input("Password to save", type="password")
 
-# Main Editor Table
+# Main Table
 st.subheader("📋 Referee Assignments")
 edited_df = st.data_editor(
     df,
@@ -157,7 +148,7 @@ if st.sidebar.button("💾 Save Changes"):
     else:
         st.sidebar.error("❌ Incorrect password.")
 
-# Add New Event
+# Add Event
 st.sidebar.subheader("➕ Add New Event")
 add_password = st.sidebar.text_input("Password to add", type="password", key="add_pw")
 if add_password == PASSWORD:
@@ -194,3 +185,14 @@ if add_password == PASSWORD:
             st.experimental_rerun()
 elif add_password:
     st.sidebar.error("❌ Incorrect password.")
+
+# === Main Page Display of Selected Referee's Events ===
+if selected_ref and selected_ref != "-- Select --":
+    def matches_clean(cell):
+        return clean_name(cell) == selected_ref
+
+    mask = df[referee_cols].applymap(matches_clean).any(axis=1)
+    filtered_events = df[mask][["Event Start", "Event Location", "Post Code"]]
+
+    st.markdown(f"---\n### 🧍 Events for **{selected_ref}**")
+    st.dataframe(filtered_events, use_container_width=True)
