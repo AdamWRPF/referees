@@ -2,18 +2,16 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime, date, time
-from dotenv import load_dotenv
 from io import BytesIO
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-# === Load environment variables ===
-load_dotenv()
-PASSWORD = os.getenv("REF_PLANNER_PASSWORD")
+# === Secure password from Streamlit Secrets ===
+PASSWORD = st.secrets["REF_PLANNER_PASSWORD"]
 
-# === Config ===
+# === File path config ===
 FILE_PATH = "referees.xlsx"
 
 # === Load and Save Functions ===
@@ -21,7 +19,7 @@ def load_data():
     if os.path.exists(FILE_PATH):
         df = pd.read_excel(FILE_PATH)
 
-        # Prioritise "Event Start", fallback to "Event Date"
+        # Combine "Event Date" and "Event Start" if needed
         if "Event Start" not in df.columns and "Event Date" in df.columns:
             df["Event Start"] = pd.to_datetime(df["Event Date"], errors="coerce")
         elif "Event Start" in df.columns and "Event Date" in df.columns:
@@ -30,11 +28,7 @@ def load_data():
         if "Event Date" in df.columns:
             df.drop(columns=["Event Date"], inplace=True)
 
-        # Ensure Post Code column exists
-        if "Post Code" not in df.columns:
-            df["Post Code"] = ""
-
-        # Ensure all required columns in order
+        # Ensure all required columns
         required_cols = [
             "Event Start", "Event Location", "Post Code", "Senior Referee",
             "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"
@@ -62,7 +56,6 @@ def generate_pdf(dataframe):
     elements.append(title)
     elements.append(Spacer(1, 12))
 
-    # Format data
     table_data = [list(dataframe.columns)]
     for row in dataframe.itertuples(index=False):
         formatted_row = []
@@ -73,7 +66,7 @@ def generate_pdf(dataframe):
                 formatted_row.append(str(cell) if pd.notnull(cell) else "")
         table_data.append(formatted_row)
 
-    # Scale table to full page width
+    # Scale to page width
     page_width = landscape(A4)[0]
     num_columns = len(table_data[0])
     col_width = page_width / num_columns
