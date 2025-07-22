@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 from datetime import datetime, date, time
 from io import BytesIO
 from reportlab.lib import colors
@@ -13,6 +14,12 @@ PASSWORD = st.secrets["REF_PLANNER_PASSWORD"]
 
 # === File path config ===
 FILE_PATH = "referees.xlsx"
+
+# === Clean & normalize referee names ===
+def clean_name(name):
+    name = str(name).strip().lower()
+    name = re.sub(r"\s*\(.*?\)", "", name)  # remove anything in parentheses
+    return name.title()
 
 # === Load and Save Functions ===
 def load_data():
@@ -28,7 +35,6 @@ def load_data():
         if "Event Date" in df.columns:
             df.drop(columns=["Event Date"], inplace=True)
 
-        # Ensure required columns
         required_cols = [
             "Event Start", "Event Location", "Post Code", "Senior Referee",
             "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"
@@ -96,6 +102,8 @@ if "data" not in st.session_state:
 df = st.session_state.data
 df["Event Start"] = pd.to_datetime(df["Event Start"], errors="coerce")
 
+referee_cols = ["Senior Referee", "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"]
+
 # === Sidebar Controls ===
 st.sidebar.title("⚙️ Planner Controls")
 
@@ -111,16 +119,16 @@ st.sidebar.download_button(
 
 # View Referee Assignments
 st.sidebar.subheader("🧍 View Referee Schedule")
-referee_cols = ["Senior Referee", "Referee 2", "Referee 3", "Referee 4", "Referee 5", "Referee 6"]
+all_names_raw = pd.concat([df[col].dropna().astype(str) for col in referee_cols])
+all_cleaned_names = sorted(set(clean_name(n) for n in all_names_raw if n.strip() and n.lower() != "nan"))
 
-# Build dropdown of unique, cleaned referee names
-all_names = pd.unique(pd.concat([df[col].astype(str).str.strip().str.lower() for col in referee_cols]).dropna())
-all_names = sorted(set([name.title() for name in all_names if name and name.lower() != "nan"]))
-
-selected_ref = st.sidebar.selectbox("Select a referee", ["-- Select --"] + all_names)
+selected_ref = st.sidebar.selectbox("Select a referee", ["-- Select --"] + all_cleaned_names)
 
 if selected_ref and selected_ref != "-- Select --":
-    mask = df[referee_cols].apply(lambda col: col.astype(str).str.lower().str.strip() == selected_ref.lower()).any(axis=1)
+    def matches_clean(cell):
+        return clean_name(cell) == selected_ref
+
+    mask = df[referee_cols].applymap(matches_clean).any(axis=1)
     st.sidebar.write(f"### Events for **{selected_ref}**:")
     st.sidebar.dataframe(df[mask][["Event Start", "Event Location", "Post Code"]], use_container_width=True)
 
@@ -128,7 +136,7 @@ if selected_ref and selected_ref != "-- Select --":
 st.sidebar.subheader("🔐 Save Edited Table")
 edit_password = st.sidebar.text_input("Password to save", type="password")
 
-# === Main Table Display ===
+# Main Editor Table
 st.subheader("📋 Referee Assignments")
 edited_df = st.data_editor(
     df,
@@ -149,7 +157,7 @@ if st.sidebar.button("💾 Save Changes"):
     else:
         st.sidebar.error("❌ Incorrect password.")
 
-# Add new event
+# Add New Event
 st.sidebar.subheader("➕ Add New Event")
 add_password = st.sidebar.text_input("Password to add", type="password", key="add_pw")
 if add_password == PASSWORD:
